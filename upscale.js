@@ -1,18 +1,32 @@
-// upscale.js
 const express = require('express')
 const fetch = require('node-fetch')
 const FormData = require('form-data')
-const bodyParser = require('body-parser')
+const multer = require('multer')
 
-const app = express()
-app.use(bodyParser.json({ limit: '50mb' }))
+const router = express.Router()
+const upload = multer()
 
-app.post('/upscale', async (req, res) => {
+// POST /upscale - bisa upload file langsung
+router.post('/upscale', upload.single('image'), async (req, res) => {
   try {
-    const { image, scale = 4, face_enhance = true } = req.body
-    if (!image) return res.status(400).json({ error: 'image (base64) is required' })
+    let base64Image
 
-    // Step 1: Hit stat.re (optional tracking)
+    if (req.file) {
+      // kalau upload file binary
+      const mime = req.file.mimetype
+      const buffer = req.file.buffer
+      base64Image = `data:${mime};base64,${buffer.toString('base64')}`
+    } else if (req.body.image) {
+      // fallback kalau masih pakai base64
+      base64Image = req.body.image
+    } else {
+      return res.status(400).json({ error: 'No image provided' })
+    }
+
+    const scale = Number(req.body.scale) || 4
+    const face_enhance = req.body.face_enhance !== 'false'
+
+    // Step 1: tracking
     await fetch('https://stat.re/api/event', {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -26,19 +40,19 @@ app.post('/upscale', async (req, res) => {
       })
     }).catch(() => {})
 
-    // Step 2: Submit job ke fooocus.one
+    // Step 2: submit job
     const submit = await fetch('https://fooocus.one/api/predictions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         version: "f121d640bd286e1fdc67f9799164c1d5be36ff74576ee11c803ae5b665dd46aa",
-        input: { image, scale, face_enhance }
+        input: { image: base64Image, scale, face_enhance }
       })
     })
     const job = await submit.json()
     if (!job.id) return res.status(500).json({ error: 'Failed to create upscale job', detail: job })
 
-    // Step 3: Polling hasil job
+    // Step 3: polling hasil
     let result = null
     for (let i = 0; i < 30; i++) {
       const check = await fetch(`https://fooocus.one/api/predictions/${job.id}`)
@@ -51,11 +65,11 @@ app.post('/upscale', async (req, res) => {
       return res.status(500).json({ error: 'Upscale failed or timeout', detail: result })
     }
 
-    // Step 4: Download hasil
+    // Step 4: download hasil
     const imgResp = await fetch(result.output)
     const buffer = await imgResp.buffer()
 
-    // Step 5: Upload ke Catbox
+    // Step 5: upload ke Catbox
     const form = new FormData()
     form.append('reqtype', 'fileupload')
     form.append('fileToUpload', buffer, { filename: 'upscaled.png' })
@@ -66,7 +80,6 @@ app.post('/upscale', async (req, res) => {
     })
     const catboxUrl = await uploadResp.text()
 
-    // Step 6: Return hasil
     res.json({
       status: 'success',
       catbox: catboxUrl.trim(),
@@ -77,4 +90,4 @@ app.post('/upscale', async (req, res) => {
   }
 })
 
-module.exports = app
+module.exports = router
