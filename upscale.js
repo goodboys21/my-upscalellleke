@@ -1,10 +1,13 @@
 const express = require('express')
+const cors = require('cors');
 const fetch = require('node-fetch')
 const FormData = require('form-data')
 const multer = require('multer')
 
 const router = express.Router()
 const upload = multer()
+router.use(cors());
+router.use(bodyParser.json());
 
 // POST /upscale - bisa upload file langsung
 router.post('/upscale', upload.single('image'), async (req, res) => {
