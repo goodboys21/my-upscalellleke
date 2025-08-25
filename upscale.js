@@ -50,16 +50,20 @@ router.post('/upscale', upload.single('image'), async (req, res) => {
       })
     })
     const job = await submit.json()
-    if (!job.id) return res.status(500).json({ error: 'Failed to create upscale job', detail: job })
+    if (!job.id && !job.data?.id) {
+  return res.status(500).json({ error: 'Failed to create upscale job', detail: job })
+}
 
+// Ambil id job (kadang di `id`, kadang di `data.id`)
+const jobId = job.id || job.data.id
     // Step 3: polling hasil
     let result = null
-    for (let i = 0; i < 30; i++) {
-      const check = await fetch(`https://fooocus.one/api/predictions/${job.id}`)
-      result = await check.json()
-      if (result.status === 'succeeded' || result.status === 'failed') break
-      await new Promise(r => setTimeout(r, 1000))
-    }
+for (let i = 0; i < 30; i++) {
+  const check = await fetch(`https://fooocus.one/api/predictions/${jobId}`)
+  result = await check.json()
+  if (result.status === 'succeeded' || result.status === 'failed') break
+  await new Promise(r => setTimeout(r, 1000))
+}
 
     if (!result || result.status !== 'succeeded') {
       return res.status(500).json({ error: 'Upscale failed or timeout', detail: result })
