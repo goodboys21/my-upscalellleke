@@ -1,16 +1,18 @@
 const express = require('express')
-const cors = require('cors');
+const cors = require('cors')
 const fetch = require('node-fetch')
 const FormData = require('form-data')
 const multer = require('multer')
+const bodyParser = require('body-parser')
 
-const router = express.Router()
+const app = express()
 const upload = multer()
-router.use(cors());
-router.use(bodyParser.json());
+
+app.use(cors())
+app.use(bodyParser.json())
 
 // POST /upscale - bisa upload file langsung
-router.post('/upscale', upload.single('image'), async (req, res) => {
+app.post('/upscale', upload.single('image'), async (req, res) => {
   try {
     let base64Image
 
@@ -54,19 +56,20 @@ router.post('/upscale', upload.single('image'), async (req, res) => {
     })
     const job = await submit.json()
     if (!job.id && !job.data?.id) {
-  return res.status(500).json({ error: 'Failed to create upscale job', detail: job })
-}
+      return res.status(500).json({ error: 'Failed to create upscale job', detail: job })
+    }
 
-// Ambil id job (kadang di `id`, kadang di `data.id`)
-const jobId = job.id || job.data.id
+    // Ambil id job (kadang di `id`, kadang di `data.id`)
+    const jobId = job.id || job.data.id
+
     // Step 3: polling hasil
     let result = null
-for (let i = 0; i < 30; i++) {
-  const check = await fetch(`https://fooocus.one/api/predictions/${jobId}`)
-  result = await check.json()
-  if (result.status === 'succeeded' || result.status === 'failed') break
-  await new Promise(r => setTimeout(r, 1000))
-}
+    for (let i = 0; i < 30; i++) {
+      const check = await fetch(`https://fooocus.one/api/predictions/${jobId}`)
+      result = await check.json()
+      if (result.status === 'succeeded' || result.status === 'failed') break
+      await new Promise(r => setTimeout(r, 1000))
+    }
 
     if (!result || result.status !== 'succeeded') {
       return res.status(500).json({ error: 'Upscale failed or timeout', detail: result })
@@ -97,4 +100,8 @@ for (let i = 0; i < 30; i++) {
   }
 })
 
-module.exports = router
+// Jalankan server
+const PORT = process.env.PORT || 3000
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`)
+})
