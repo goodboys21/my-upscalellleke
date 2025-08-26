@@ -1,10 +1,19 @@
 const express = require('express')
-const app = require('./upscale')
+const cors = require('cors')
+const fetch = require('node-fetch')
+const FormData = require('form-data')
+const multer = require('multer')
+const bodyParser = require('body-parser')
 
-const server = express()
-server.use('/', app)
+const app = express()
+const upload = multer()
 
-const PORT = process.env.PORT || 3000
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
+app.use(cors())
+app.use(bodyParser.json())
+
+app.post('/upscale', upload.single('image'), async (req, res) => {
+  // ... kode sama persis dengan sebelumnya ...
 })
+
+// ✅ Export biar bisa dipakai Vercel
+module.exports = app
